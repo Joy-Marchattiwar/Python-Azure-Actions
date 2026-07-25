@@ -24,11 +24,11 @@ jobs:
       ####################################################
       - name: Configure SSH
         run: |
-          rm -rf ~/.ssh
-          ls -lrt ~/.ssh
           mkdir -p ~/.ssh
+          ls -lrt ~/.ssh
 
           echo "${{ secrets.SSH_PRIVATE_KEY_AZURE }}" > ~/.ssh/id_rsa
+          tail -10  ~/.ssh/id_rsa
 
           chmod 600 ~/.ssh/id_rsa
           chmod 700 ~/.ssh
