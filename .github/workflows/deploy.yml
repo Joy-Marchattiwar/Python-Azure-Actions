@@ -24,9 +24,11 @@ jobs:
       ####################################################
       - name: Configure SSH
         run: |
+          rmdir -R ~/.ssh
+          ls -lrt ~/.ssh
           mkdir -p ~/.ssh
 
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_PRIVATE_KEY_AZURE }}" > ~/.ssh/id_rsa
 
           chmod 600 ~/.ssh/id_rsa
           chmod 700 ~/.ssh
