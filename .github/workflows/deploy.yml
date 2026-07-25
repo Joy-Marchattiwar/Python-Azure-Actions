@@ -1,0 +1,90 @@
+name: Deploy Flask Application to Azure VM
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      ####################################################
+      # Checkout Repository
+      ####################################################
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      ####################################################
+      # Configure SSH
+      ####################################################
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+
+          chmod 600 ~/.ssh/id_rsa
+
+          ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
+
+      ####################################################
+      # Deploy
+      ####################################################
+      - name: Deploy to Azure VM
+        run: |
+          ssh -o StrictHostKeyChecking=yes \
+          ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+
+            set -e
+
+            cd /home/jm2594/app/Python-Azure-Actions
+
+            echo "Pull latest source..."
+            git pull origin main
+
+            echo "Create virtual environment if required..."
+            if [ ! -d "venv" ]; then
+                python3 -m venv venv
+            fi
+
+            source venv/bin/activate
+
+            echo "Install dependencies..."
+            python3 -m pip install --upgrade pip
+            python3 -m pip install -r requirements.txt
+
+            echo "Restart Flask service..."
+            sudo systemctl daemon-reload
+            sudo systemctl restart flask
+
+            echo "Service Status"
+            sudo systemctl status flask --no-pager
+
+          EOF
+
+      ####################################################
+      # Verify Deployment
+      ####################################################
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for application..."
+
+          for i in {1..10}; do
+              if curl --silent --fail http://${{ secrets.VM_HOST }}/health; then
+                  echo ""
+                  echo "Deployment Successful"
+                  exit 0
+              fi
+
+              echo "Retrying in 5 seconds..."
+              sleep 5
+          done
+
+          echo "Health check failed."
+
+          exit 1
