@@ -28,17 +28,19 @@ jobs:
           ls -lrt ~/.ssh
 
           echo "${{ secrets.SSH_PRIVATE_KEY_AZURE }}" > ~/.ssh/id_rsa
+          echo ==================tail -10 ==================
           tail -10  ~/.ssh/id_rsa
 
           chmod 600 ~/.ssh/id_rsa
           chmod 700 ~/.ssh
-
+          echo ==================1==================
           ssh-keyscan -H ${{ vars.VM_HOST }} >> ~/.ssh/known_hosts
-          cat ~/.ssh/known_hosts
+          #cat ~/.ssh/known_hosts
           wc -l ~/.ssh/id_rsa
+          echo ==================2==================
           ssh-keygen -y -f ~/.ssh/id_rsa
-          ssh -o StrictHostKeyChecking=yes \
-          ${{ vars.VM_USER }}@${{ vars.VM_HOST }} << 'EOF'
+          echo ==================3 : ${{ vars.VM_USER }}@${{ vars.VM_HOST }} ==================
+          ssh -o StrictHostKeyChecking=yes ${{ vars.VM_USER }}@${{ vars.VM_HOST }} << 'EOF'
 
             set -e
 
