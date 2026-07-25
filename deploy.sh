@@ -2,7 +2,7 @@
 
 set -e
 
-APP_DIR="/home/<user>/app/Python-Azure-Actions"
+APP_DIR="/home/jm2594/app/Python-Azure-Actions"
 
 echo "======================================"
 echo "Starting Deployment..."
