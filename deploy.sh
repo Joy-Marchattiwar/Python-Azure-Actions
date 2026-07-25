@@ -4,7 +4,7 @@ APP_DIR="/home/jm2594/app/Python-Azure-Actions"
 echo "======================================"
 echo "Starting Deployment..."
 echo "======================================"
-cd "$APP_DIR"
+cd $APP_DIR
 echo "Pulling latest source..."
 git pull origin main
 echo "Checking virtual environment..."
