@@ -24,7 +24,7 @@ jobs:
       ####################################################
       - name: Configure SSH
         run: |
-          rmdir -R ~/.ssh
+          rm -rf ~/.ssh
           ls -lrt ~/.ssh
           mkdir -p ~/.ssh
 
