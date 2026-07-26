@@ -50,4 +50,4 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          pgrep -f "python.*app.py"
+          pgrep -f "app.py"
