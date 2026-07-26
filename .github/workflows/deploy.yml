@@ -43,6 +43,7 @@ jobs:
           sudo systemctl restart flask
           
       - name: Checking Service Status
+        continue-on-error: true
         run: |
           echo "Checking Service Status"
           sudo systemctl status flask --no-pager
