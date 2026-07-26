@@ -49,5 +49,4 @@ jobs:
           sudo systemctl status flask --no-pager
 
       - name: Verify Deployment
-        run: |
-          pgrep -f "app.py"
+        run: ps -ef | grep -i "app.py"
