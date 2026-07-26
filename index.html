@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Azure VM as GitHub Actions Self-Hosted Runner</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f4f6f9;margin:0;color:#333}
+header{background:#0b5cab;color:#fff;padding:20px}
+main{max-width:1100px;margin:auto;background:#fff;padding:25px}
+h1,h2{color:#0b5cab}
+pre{background:#272822;color:#f8f8f2;padding:12px;overflow:auto;border-radius:6px}
+code{font-family:Consolas,monospace}
+.flow{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin:20px 0}
+.box{background:#e8f1fb;border:1px solid #8ab4f8;border-radius:8px;padding:10px;width:140px;text-align:center;font-weight:bold}
+.arrow{font-size:28px;color:#0b5cab}
+.note{background:#fff8dc;border-left:5px solid orange;padding:10px}
+.shot{border:2px dashed #999;padding:15px;margin:10px 0;background:#fafafa}
+table{border-collapse:collapse;width:100%}
+td,th{border:1px solid #ccc;padding:8px}
+th{background:#e8f1fb}
+</style>
+</head>
+<body>
+<header>
+<h1>Azure VM as a GitHub Actions Self-Hosted Runner</h1>
+<p>End-to-End Setup Guide</p>
+</header>
+<main>
+
+<h2>Architecture Flow</h2>
+<div class="flow">
+<div class="box">Azure Portal</div><div class="arrow">➜</div>
+<div class="box">Ubuntu VM</div><div class="arrow">➜</div>
+<div class="box">GitHub Runner</div><div class="arrow">➜</div>
+<div class="box">Runner Service</div><div class="arrow">➜</div>
+<div class="box">GitHub Actions</div>
+</div>
+
+<h2>Suggested Screenshots</h2>
+<div class="shot">📷 Azure Portal → Create Virtual Machine</div>
+<div class="shot">📷 Networking → Allow TCP 22 and TCP 80</div>
+<div class="shot">📷 GitHub → Settings → Actions → Runners → New self-hosted runner</div>
+<div class="shot">📷 Runner status showing <b>Online (Idle)</b></div>
+<div class="shot">📷 Successful GitHub Actions workflow run</div>
+
+<h2>1. Create Azure Ubuntu VM</h2>
+<ol>
+<li>Create a Resource Group.</li>
+<li>Create Ubuntu 22.04/24.04 LTS VM.</li>
+<li>Select SSH Public Key authentication.</li>
+<li>Download the private key (.pem).</li>
+<li>Allow inbound ports 22 (SSH) and 80 (HTTP).</li>
+<li>Note the Public IP and username.</li>
+</ol>
+
+<h2>2. Connect to VM</h2>
+<pre><code>ssh -i flask-server_key.pem &lt;username&gt;@&lt;VM_PUBLIC_IP&gt;
+
+sudo apt update
+sudo apt upgrade -y
+
+sudo apt install -y git curl wget unzip \
+python3 python3-pip python3-venv
+</code></pre>
+
+<h2>3. Configure Self-Hosted Runner</h2>
+<pre><code># Create folder
+mkdir actions-runner
+cd actions-runner
+
+# Download runner
+curl -o actions-runner-linux-x64-2.336.0.tar.gz -L \
+https://github.com/actions/runner/releases/download/v2.336.0/actions-runner-linux-x64-2.336.0.tar.gz
+
+# Validate hash
+echo "04cf0be1aff4c3ec3554466c39124ca250e3effd8873bb7e8d68535aa9505d5d actions-runner-linux-x64-2.336.0.tar.gz" | shasum -a 256 -c
+
+# Extract
+tar xzf ./actions-runner-linux-x64-2.336.0.tar.gz
+</code></pre>
+
+<h2>4. Register Runner</h2>
+<p>In GitHub navigate to <b>Repository → Settings → Actions → Runners → New self-hosted runner</b>.</p>
+
+<pre><code>./config.sh \
+--url https://github.com/Joy-Marchattiwar/Python-Azure-Actions \
+--token &lt;REGISTRATION_TOKEN&gt;
+
+./run.sh
+</code></pre>
+
+<div class="note">
+Registration tokens expire quickly. Generate a fresh token whenever you configure a new runner. Do not hard-code or publish tokens.
+</div>
+
+<h2>5. Install Runner as a Service</h2>
+
+<pre><code>sudo ./svc.sh install
+sudo ./svc.sh start
+
+sudo ./svc.sh status
+
+sudo systemctl status actions.runner*
+</code></pre>
+
+<h2>6. GitHub Actions Workflow</h2>
+
+<pre><code>name: Deploy Flask Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Display Python Version
+        run: python3 --version
+
+      - name: Create Virtual Environment
+        run: |
+          python3 -m venv venv
+
+      - name: Install Dependencies
+        run: |
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Stop Existing Flask Process
+        run: |
+          pkill -f "python.*app.py" || true
+
+      - name: Start Flask Application
+        run: |
+          sudo systemctl daemon-reload
+          sudo systemctl restart flask
+
+      - name: Checking Service Status
+        continue-on-error: true
+        run: |
+          sudo systemctl status flask --no-pager
+
+      - name: Verify Deployment
+        run: |
+          ps -ef | grep -i "app.py"
+</code></pre>
+
+<h2>7. Validation</h2>
+
+<pre><code>sudo ./svc.sh status
+
+curl http://localhost/health
+
+journalctl -u actions.runner* --no-pager
+
+sudo systemctl status flask
+</code></pre>
+
+<h2>8. Troubleshooting</h2>
+<table>
+<tr><th>Issue</th><th>Resolution</th></tr>
+<tr><td>Permission denied (publickey)</td><td>Verify SSH key pair and authorized_keys.</td></tr>
+<tr><td>Runner Offline</td><td>Restart runner service and inspect journal logs.</td></tr>
+<tr><td>217/USER</td><td>Correct User and WorkingDirectory in flask.service.</td></tr>
+<tr><td>Health Check Failed</td><td>Verify Gunicorn, Flask, Nginx and firewall configuration.</td></tr>
+</table>
+
+</main>
+</body>
+</html>
