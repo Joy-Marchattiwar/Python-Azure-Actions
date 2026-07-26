@@ -1,93 +1,52 @@
-name: Deploy Flask Application to Azure VM
+name: Deploy Flask Application
 
 on:
   push:
     branches:
       - main
 
-permissions:
-  contents: read
-
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+
+    runs-on: self-hosted
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      ####################################################
-      # Checkout Repository
-      ####################################################
+
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      ####################################################
-      # Configure SSH
-      ####################################################
-      - name: Configure SSH and Deploy
+      - name: Display Python Version
+        run: python3 --version
+
+      - name: Create Virtual Environment
         run: |
-          mkdir -p ~/.ssh
-          ls -lrt ~/.ssh
+          python3 -m venv venv
 
-          echo "${{ secrets.SSH_PRIVATE_KEY_AZURE }}" > ~/.ssh/id_rsa
-          echo ==================tail -10 ==================
-          tail -10  ~/.ssh/id_rsa
+      - name: Install Dependencies
+        run: |
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-          chmod 600 ~/.ssh/id_rsa
-          chmod 700 ~/.ssh
-          echo ==================1==================
-          ssh-keyscan -H ${{ vars.VM_HOST }} >> ~/.ssh/known_hosts
-          #cat ~/.ssh/known_hosts
-          wc -l ~/.ssh/id_rsa
-          echo ==================2 : tail -10 ==================
-          #ssh-keygen -y -f ~/.ssh/id_rsa
-          tail -10  ~/.ssh/id_rsa
-          echo ==================3 : ${{ vars.VM_USER }}@${{ vars.VM_HOST }} ==================
-          ssh -i ~/.ssh/id_rsa ${{ vars.VM_USER }}@${{ vars.VM_HOST }} << 'EOF'
+      - name: Stop Existing Flask Process
+        run: |
+          pkill -f "python.*app.py" || true
 
-            set -e
+      - name: Start Flask Application
+        run: |
+          echo "Restart Flask service..."
+          sudo systemctl daemon-reload
+          sudo systemctl restart flask
+          
+      - name: Checking Service Status
+        continue-on-error: true
+        run: |
+          echo "Checking Service Status"
+          sudo systemctl status flask --no-pager
 
-            cd /home/jm2594/app/Python-Azure-Actions
-
-            echo "Pull latest source..."
-            git pull origin main
-
-            echo "Create virtual environment if required..."
-            if [ ! -d "venv" ]; then
-                python3 -m venv venv
-            fi
-
-            source venv/bin/activate
-
-            echo "Install dependencies..."
-            python3 -m pip install --upgrade pip
-            python3 -m pip install -r requirements.txt
-
-            echo "Restart Flask service..."
-            sudo systemctl daemon-reload
-            sudo systemctl restart flask
-
-            echo "Service Status"
-            sudo systemctl status flask --no-pager
-
-          EOF
-
-      ####################################################
-      # Verify Deployment
-      ####################################################
       - name: Verify Deployment
-        run: |
-          echo "Waiting for application..."
-
-          for i in {1..10}; do
-              if curl --silent --fail http://${{ vars.VM_HOST }}/health; then
-                  echo ""
-                  echo "Deployment Successful"
-                  exit 0
-              fi
-
-              echo "Retrying in 5 seconds..."
-              sleep 5
-          done
-
-          echo "Health check failed."
-
-          exit 1
+        run: ps -ef | grep -i "app.py"
